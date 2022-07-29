@@ -44,6 +44,32 @@ impl MemorySet {
             areas: Vec::new(),
         }
     }
+
+    pub fn munmap(&mut self, start: usize, len: usize) {
+        let start_vpn = VirtAddr::from(start).floor();
+        let end_vpn = VirtAddr::from(start + len).ceil();
+        let page_table = &mut self.page_table;
+        for vpn in VPNRange::new(start_vpn, end_vpn) {
+            for area in self.areas.iter_mut() {
+                area.unmap_one(page_table, vpn);
+            }
+        }
+    }
+
+    pub fn mmap(&mut self, start: usize, len: usize, port: usize) {
+        let mut permission = MapPermission::U;
+        if port & 1 == 1 {
+            permission |= MapPermission::R;
+        }
+        if port & 2 == 2 {
+            permission |= MapPermission::W;
+        }
+        if port & 4 == 4 {
+            permission |= MapPermission::X;
+        }
+        self.insert_framed_area(VirtAddr::from(start), VirtAddr::from(start + len), permission);
+    }
+
     pub fn token(&self) -> usize {
         self.page_table.token()
     }

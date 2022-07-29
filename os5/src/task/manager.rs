@@ -10,6 +10,7 @@ use alloc::collections::VecDeque;
 use alloc::sync::Arc;
 use lazy_static::*;
 
+// TaskManager 进行了一次减负，把当前运行进程的信息全部放入到了Processor结构，减负后的结构为：
 pub struct TaskManager {
     ready_queue: VecDeque<Arc<TaskControlBlock>>,
 }
@@ -32,6 +33,7 @@ impl TaskManager {
     }
 }
 
+// 实例化
 lazy_static! {
     /// TASK_MANAGER instance through lazy_static!
     pub static ref TASK_MANAGER: UPSafeCell<TaskManager> =

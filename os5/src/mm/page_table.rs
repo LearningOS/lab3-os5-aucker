@@ -1,10 +1,12 @@
 //! Implementation of [`PageTableEntry`] and [`PageTable`].
 
+use super::address::VPNRange;
 use super::{frame_alloc, FrameTracker, PhysAddr, PhysPageNum, StepByOne, VirtAddr, VirtPageNum};
 use alloc::string::String;
 use alloc::vec;
 use alloc::vec::Vec;
 use bitflags::*;
+use core::fmt::Debug;
 
 bitflags! {
     /// page table entry flags
@@ -71,6 +73,8 @@ impl PageTable {
             frames: vec![frame],
         }
     }
+    // 临时创建一个专用手动查页表的pagetable，仅有一个从传入的satp token中得到的
+    // 多级页表根节点的物理页号，它的frames字段为空，即不控制任何资源
     /// Temporarily used to get arguments from user space.
     pub fn from_token(satp: usize) -> Self {
         Self {
@@ -195,4 +199,63 @@ pub fn translated_refmut<T>(token: usize, ptr: *mut T) -> &'static mut T {
         .translate_va(VirtAddr::from(va))
         .unwrap()
         .get_mut()
+}
+
+
+// give bare pointer value
+pub fn translated_assign_ptr<T: Debug>(token: usize, ptr: *mut T, value: T) {
+    let page_table = PageTable::from_token(token);
+    let va = VirtAddr::from(ptr as usize);
+    let vpn = va.floor();
+    let offset = va.page_offset();
+    let ppn = page_table.translate(vpn).unwrap().ppn();
+    let pa: PhysAddr = (usize::from(PhysAddr::from(ppn)) + offset).into();
+    unsafe {
+        let ptr_pa = (pa.0 as *mut T).as_mut().unwrap();
+        *ptr_pa = value;
+    }
+}
+
+pub fn translate_va_to_pa(token: usize, va: VirtAddr) -> Option<PhysAddr> {
+    let page_table = PageTable::from_token(token);
+    page_table.find_pte(va.clone().floor())
+        .map(|pte| {
+            let aligned_pa: PhysAddr = pte.ppn().into();
+            let offset = va.page_offset();
+            let aligned_pa_usize: usize = aligned_pa.into();
+            (aligned_pa_usize + offset).into()
+        })
+}
+
+pub fn has_mapped(token: usize, start: usize, len: usize) -> bool {
+    let start_vpn = VirtAddr::from(start).floor();
+    let end_vpn = VirtAddr::from(start + len).ceil();
+    let page_table = PageTable::from_token(token);
+    for vpn in VPNRange::new(start_vpn, end_vpn) {
+        if let Some(x) = page_table.translate(vpn) {
+            if x.is_valid() == true {
+                return false;
+            }
+        }
+    }
+    true
+}
+
+pub fn has_unmapped(token: usize, start: usize, len: usize) -> bool {
+    let start_vpn = VirtAddr::from(start).floor();
+    let end_vpn = VirtAddr::from(start + len).ceil();
+    let page_table = PageTable::from_token(token);
+    for vpn in VPNRange::new(start_vpn, end_vpn) {
+        match page_table.translate(vpn) {
+            Some(x) => {
+                if x.is_valid() == false {
+                    return true;
+                }
+            }
+            None => {
+                return true;
+            }
+        }
+    }
+    false
 }

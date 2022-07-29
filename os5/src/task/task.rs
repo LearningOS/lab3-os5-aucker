@@ -2,13 +2,15 @@
 
 use super::TaskContext;
 use super::{pid_alloc, KernelStack, PidHandle};
-use crate::config::TRAP_CONTEXT;
+use crate::config::{TRAP_CONTEXT, MAX_SYSCALL_NUM};
 use crate::mm::{MemorySet, PhysPageNum, VirtAddr, KERNEL_SPACE};
 use crate::sync::UPSafeCell;
+use crate::timer::get_time_us;
 use crate::trap::{trap_handler, TrapContext};
 use alloc::sync::{Arc, Weak};
 use alloc::vec::Vec;
 use core::cell::RefMut;
+use core::char::MAX;
 
 /// Task control block structure
 ///
@@ -46,6 +48,10 @@ pub struct TaskControlBlockInner {
     pub children: Vec<Arc<TaskControlBlock>>,
     /// It is set when active exit or execution error occurs
     pub exit_code: i32,
+    pub syscall_times: [u32; MAX_SYSCALL_NUM],
+    pub start_time: usize,
+    pub task_priority: usize,
+    pub task_stride: usize,
 }
 
 /// Simple access to its internal fields
@@ -103,6 +109,10 @@ impl TaskControlBlock {
                     parent: None,
                     children: Vec::new(),
                     exit_code: 0,
+                    syscall_times: [0; MAX_SYSCALL_NUM],
+                    start_time: get_time_us() / 1000,
+                    task_priority: 16,
+                    task_stride: 0,
                 })
             },
         };
@@ -132,6 +142,9 @@ impl TaskControlBlock {
         inner.memory_set = memory_set;
         // update trap_cx ppn
         inner.trap_cx_ppn = trap_cx_ppn;
+        // set the task_priority
+        inner.task_priority = 16;
+
         // initialize trap_cx
         let trap_cx = inner.get_trap_cx();
         *trap_cx = TrapContext::app_init_context(
@@ -170,6 +183,10 @@ impl TaskControlBlock {
                     parent: Some(Arc::downgrade(self)),
                     children: Vec::new(),
                     exit_code: 0,
+                    syscall_times: parent_inner.syscall_times,
+                    start_time: parent_inner.start_time,
+                    task_priority: parent_inner.task_priority,
+                    task_stride: parent_inner.task_stride,
                 })
             },
         });
@@ -186,6 +203,12 @@ impl TaskControlBlock {
     }
     pub fn getpid(&self) -> usize {
         self.pid.0
+    }
+
+    pub fn set_priority(&self, prio: isize) -> isize {
+        let mut inner = self.inner_exclusive_access();
+        inner.task_priority = prio as usize;
+        prio
     }
 }
 

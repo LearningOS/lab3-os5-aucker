@@ -17,7 +17,7 @@ mod switch;
 #[allow(clippy::module_inception)]
 mod task;
 
-use crate::loader::get_app_data_by_name;
+use crate::{loader::get_app_data_by_name, config::BIG_STRIDE};
 use alloc::sync::Arc;
 use lazy_static::*;
 use manager::fetch_task;
@@ -28,7 +28,7 @@ pub use context::TaskContext;
 pub use manager::add_task;
 pub use pid::{pid_alloc, KernelStack, PidHandle};
 pub use processor::{
-    current_task, current_trap_cx, current_user_token, run_tasks, schedule, take_current_task,
+    current_task, current_trap_cx, current_user_token, run_tasks, schedule, take_current_task, get_task_info, mmap, munmap,
 };
 
 /// Make current task suspended and switch to the next task
@@ -41,6 +41,7 @@ pub fn suspend_current_and_run_next() {
     let task_cx_ptr = &mut task_inner.task_cx as *mut TaskContext;
     // Change status to Ready
     task_inner.task_status = TaskStatus::Ready;
+    task_inner.task_stride = task_inner.task_stride + BIG_STRIDE / task_inner.task_priority;
     drop(task_inner);
     // ---- release current PCB
 
@@ -48,6 +49,8 @@ pub fn suspend_current_and_run_next() {
     add_task(task);
     // jump to scheduling cycle
     schedule(task_cx_ptr);
+
+    // 进程被调度时会将自己加入到Ready queue中，以及切换进程变成了schedule()
 }
 
 /// Exit current task, recycle process resources and switch to the next task
