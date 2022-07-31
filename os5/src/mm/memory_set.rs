@@ -328,6 +328,7 @@ impl MapArea {
         page_table.map(vpn, ppn, pte_flags);
     }
 
+    #[allow(unused)]
     pub fn unmap_one(&mut self, page_table: &mut PageTable, vpn: VirtPageNum) {
         #[allow(clippy::single_match)]
         match self.map_type {

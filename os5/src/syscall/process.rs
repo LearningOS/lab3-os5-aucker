@@ -1,7 +1,7 @@
 //! Process management syscalls
 
 use crate::loader::get_app_data_by_name;
-use crate::mm::{translated_refmut, translated_str, translated_assign_ptr, translate_va_to_pa};
+use crate::mm::{translated_refmut, translated_str, translate_va_to_pa};
 use crate::task::{
     add_task, current_task, current_user_token, exit_current_and_run_next,
     suspend_current_and_run_next, TaskStatus, TaskControlBlock,
@@ -106,24 +106,36 @@ pub fn sys_waitpid(pid: isize, exit_code_ptr: *mut i32) -> isize {
 }
 
 // YOUR JOB: 引入虚地址后重写 sys_get_time
+// pub fn sys_get_time(_ts: *mut TimeVal, _tz: usize) -> isize {
+//     let _us = get_time_us();
+//     // unsafe {
+//     //     *ts = TimeVal {
+//     //         sec: us / 1_000_000,
+//     //         usec: us % 1_000_000,
+//     //     };
+//     // }
+//     translated_assign_ptr(
+//         current_user_token(),
+//         _ts,
+//         TimeVal {
+//             sec: _us / 1_000_000,
+//             usec: _us % 1_000_000,
+//         }
+//     );
+//     0
+// }
 pub fn sys_get_time(_ts: *mut TimeVal, _tz: usize) -> isize {
     let _us = get_time_us();
-    // unsafe {
-    //     *ts = TimeVal {
-    //         sec: us / 1_000_000,
-    //         usec: us % 1_000_000,
-    //     };
-    // }
-    translated_assign_ptr(
-        current_user_token(),
-        _ts,
-        TimeVal {
+    let pa_ts = translate_va_to_pa(current_user_token(), (_ts as usize).into()).unwrap().0;
+    unsafe {
+        *(pa_ts as *mut TimeVal) = TimeVal {
             sec: _us / 1_000_000,
             usec: _us % 1_000_000,
-        }
-    );
+        };
+    }
     0
 }
+
 
 // YOUR JOB: 引入虚地址后重写 sys_task_info
 pub fn sys_task_info(ti: *mut TaskInfo) -> isize {
@@ -143,9 +155,11 @@ pub fn sys_set_priority(prio: isize) -> isize {
     // -1
     if prio < 2 {
         return -1;
+    } else {
+        current_task().unwrap().set_priority(prio)
     }
     // set_task_priority(prio as usize);
-    current_task().unwrap().set_priority(prio)
+    
 }
 
 // YOUR JOB: 扩展内核以实现 sys_mmap 和 sys_munmap
@@ -166,8 +180,8 @@ pub fn sys_munmap(start: usize, len: usize) -> isize {
 // ALERT: 注意在实现 SPAWN 时不需要复制父进程地址空间，SPAWN != FORK + EXEC 
 pub fn sys_spawn(_path: *const u8) -> isize {
     // -1
-    let token = current_user_token();
-    let path = translated_str(token, _path);
+    // let token = current_user_token();
+    let path = translated_str(current_user_token(), _path);
     if let Some(data) = get_app_data_by_name(path.as_str()) {
         // let new_task: Arc<TaskControlBlock> = Arc::new(TaskControlBlock::new(data));
         // let mut new_inner = new_task.inner_exclusive_access();

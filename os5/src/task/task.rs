@@ -10,7 +10,6 @@ use crate::trap::{trap_handler, TrapContext};
 use alloc::sync::{Arc, Weak};
 use alloc::vec::Vec;
 use core::cell::RefMut;
-use core::char::MAX;
 
 /// Task control block structure
 ///
@@ -48,9 +47,13 @@ pub struct TaskControlBlockInner {
     pub children: Vec<Arc<TaskControlBlock>>,
     /// It is set when active exit or execution error occurs
     pub exit_code: i32,
+    /// syscall times
     pub syscall_times: [u32; MAX_SYSCALL_NUM],
+    /// start running time
     pub start_time: usize,
+    /// priority
     pub task_priority: usize,
+    /// stride: for stride_schedule
     pub task_stride: usize,
 }
 
