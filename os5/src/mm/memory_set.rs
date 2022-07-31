@@ -45,30 +45,30 @@ impl MemorySet {
         }
     }
 
-    pub fn munmap(&mut self, start: usize, len: usize) {
-        let start_vpn = VirtAddr::from(start).floor();
-        let end_vpn = VirtAddr::from(start + len).ceil();
-        let page_table = &mut self.page_table;
-        for vpn in VPNRange::new(start_vpn, end_vpn) {
-            for area in self.areas.iter_mut() {
-                area.unmap_one(page_table, vpn);
-            }
-        }
-    }
+    // pub fn munmap(&mut self, start: usize, len: usize) {
+    //     let start_vpn = VirtAddr::from(start).floor();
+    //     let end_vpn = VirtAddr::from(start + len).ceil();
+    //     let page_table = &mut self.page_table;
+    //     for vpn in VPNRange::new(start_vpn, end_vpn) {
+    //         for area in self.areas.iter_mut() {
+    //             area.unmap_one(page_table, vpn);
+    //         }
+    //     }
+    // }
 
-    pub fn mmap(&mut self, start: usize, len: usize, port: usize) {
-        let mut permission = MapPermission::U;
-        if port & 1 == 1 {
-            permission |= MapPermission::R;
-        }
-        if port & 2 == 2 {
-            permission |= MapPermission::W;
-        }
-        if port & 4 == 4 {
-            permission |= MapPermission::X;
-        }
-        self.insert_framed_area(VirtAddr::from(start), VirtAddr::from(start + len), permission);
-    }
+    // pub fn mmap(&mut self, start: usize, len: usize, port: usize) {
+    //     let mut permission = MapPermission::U;
+    //     if port & 1 == 1 {
+    //         permission |= MapPermission::R;
+    //     }
+    //     if port & 2 == 2 {
+    //         permission |= MapPermission::W;
+    //     }
+    //     if port & 4 == 4 {
+    //         permission |= MapPermission::X;
+    //     }
+    //     self.insert_framed_area(VirtAddr::from(start), VirtAddr::from(start + len), permission);
+    // }
 
     pub fn token(&self) -> usize {
         self.page_table.token()
@@ -85,6 +85,17 @@ impl MemorySet {
             None,
         );
     }
+
+    pub fn has_conflict_with_range(
+        & self,
+        start_va: VirtAddr,
+        end_va: VirtAddr
+    ) -> bool {
+        self.areas.iter().find(|&area|{
+            area.has_conflict_with_range(start_va, end_va)
+        }).is_some()
+    }
+
     pub fn remove_area_with_start_vpn(&mut self, start_vpn: VirtPageNum) {
         if let Some((idx, area)) = self
             .areas
@@ -96,6 +107,21 @@ impl MemorySet {
             self.areas.remove(idx);
         }
     }
+
+    pub fn unmap_area_exact_range(&mut self, start_vn: VirtPageNum, end_vn: VirtPageNum) -> isize {
+        for i in 0..self.areas.len(){
+            let area = &mut self.areas[i];
+            let vrange = area.vpn_range;
+            if start_vn == vrange.get_start() &&
+            end_vn == vrange.get_end() {
+                area.unmap(&mut self.page_table);
+                self.areas.swap_remove(i);
+                return 0;
+            }
+        }
+        -1
+    }
+
     fn push(&mut self, mut map_area: MapArea, data: Option<&[u8]>) {
         map_area.map(&mut self.page_table);
         if let Some(data) = data {
@@ -328,7 +354,7 @@ impl MapArea {
         page_table.map(vpn, ppn, pte_flags);
     }
 
-    #[allow(unused)]
+    // #[allow(unused)]
     pub fn unmap_one(&mut self, page_table: &mut PageTable, vpn: VirtPageNum) {
         #[allow(clippy::single_match)]
         match self.map_type {
@@ -370,6 +396,16 @@ impl MapArea {
             }
             current_vpn.step();
         }
+    }
+
+    pub fn has_conflict_with_range(
+        & self,
+        start_va: VirtAddr,
+        end_va: VirtAddr
+    ) -> bool {
+        let self_start: VirtAddr = self.vpn_range.get_start().into();
+        let self_end: VirtAddr = self.vpn_range.get_end().into();
+        start_va < self_end && end_va > self_start 
     }
 }
 

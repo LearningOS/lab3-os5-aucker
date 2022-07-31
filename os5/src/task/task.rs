@@ -1,6 +1,7 @@
 //! Types related to task management & Functions for completely changing TCB
 
 use super::TaskContext;
+use super::manager::Pass;
 use super::{pid_alloc, KernelStack, PidHandle};
 use crate::config::{TRAP_CONTEXT, MAX_SYSCALL_NUM};
 use crate::mm::{MemorySet, PhysPageNum, VirtAddr, KERNEL_SPACE};
@@ -54,7 +55,7 @@ pub struct TaskControlBlockInner {
     /// priority
     pub task_priority: usize,
     /// stride: for stride_schedule
-    pub task_stride: usize,
+    pub task_stride: Pass,
 }
 
 /// Simple access to its internal fields
@@ -115,7 +116,7 @@ impl TaskControlBlock {
                     syscall_times: [0; MAX_SYSCALL_NUM],
                     start_time: get_time_us() / 1000,
                     task_priority: 16,
-                    task_stride: 0,
+                    task_stride: Pass::new(),
                 })
             },
         };
@@ -185,7 +186,7 @@ impl TaskControlBlock {
                     parent: None,
                     children: Vec::new(),
                     exit_code: 0,
-                    task_stride: 0,
+                    task_stride: Pass::new(),
                     task_priority: 16,
                     syscall_times: [0;MAX_SYSCALL_NUM],
                     start_time: 0,
