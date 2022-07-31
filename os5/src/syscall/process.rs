@@ -134,6 +134,10 @@ pub fn sys_task_info(ti: *mut TaskInfo) -> isize {
     0
 }
 
+pub fn increase_syscall_time(syscall_number: usize) {
+    crate::task::increase_syscall_time(syscall_number);
+}
+
 // YOUR JOB: 实现sys_set_priority，为任务添加优先级
 pub fn sys_set_priority(prio: isize) -> isize {
     // -1
@@ -141,8 +145,7 @@ pub fn sys_set_priority(prio: isize) -> isize {
         return -1;
     }
     // set_task_priority(prio as usize);
-    current_task().unwrap().set_priority(prio);
-    prio as isize
+    current_task().unwrap().set_priority(prio)
 }
 
 // YOUR JOB: 扩展内核以实现 sys_mmap 和 sys_munmap
@@ -166,16 +169,17 @@ pub fn sys_spawn(_path: *const u8) -> isize {
     let token = current_user_token();
     let path = translated_str(token, _path);
     if let Some(data) = get_app_data_by_name(path.as_str()) {
-        let new_task: Arc<TaskControlBlock> = Arc::new(TaskControlBlock::new(data));
-        let mut new_inner = new_task.inner_exclusive_access();
-        let parent = current_task().unwrap();
-        let mut parent_inner = parent.inner_exclusive_access();
-        new_inner.parent = Some(Arc::downgrade(&parent));
-        parent_inner.children.push(new_task.clone());
-        drop(new_inner);
-        drop(parent_inner);
+        // let new_task: Arc<TaskControlBlock> = Arc::new(TaskControlBlock::new(data));
+        // let mut new_inner = new_task.inner_exclusive_access();
+        // let parent = current_task().unwrap();
+        // let mut parent_inner = parent.inner_exclusive_access();
+        // new_inner.parent = Some(Arc::downgrade(&parent));
+        // parent_inner.children.push(new_task.clone());
+        // drop(new_inner);
+        // drop(parent_inner);
+        let new_task = current_task().unwrap().spawn(data);
         let new_pid = new_task.pid.0;
-        add_task(new_task);
+        add_task(new_task.clone());
         new_pid as isize
     } else {
         -1
