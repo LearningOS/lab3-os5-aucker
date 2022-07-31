@@ -25,10 +25,10 @@ use switch::__switch;
 pub use task::{TaskControlBlock, TaskStatus};
 
 pub use context::TaskContext;
-pub use manager::add_task;
+pub use manager::{add_task, set_priority};
 pub use pid::{pid_alloc, KernelStack, PidHandle};
 pub use processor::{
-    current_task, current_trap_cx, current_user_token, run_tasks, schedule, take_current_task, get_task_info, mmap, munmap, increase_syscall_time,
+    current_task, current_trap_cx, current_user_token, run_tasks, schedule, take_current_task,
 };
 
 /// Make current task suspended and switch to the next task
@@ -41,7 +41,7 @@ pub fn suspend_current_and_run_next() {
     let task_cx_ptr = &mut task_inner.task_cx as *mut TaskContext;
     // Change status to Ready
     task_inner.task_status = TaskStatus::Ready;
-    task_inner.task_stride = task_inner.task_stride + BIG_STRIDE / task_inner.task_priority;
+    // task_inner.task_stride = task_inner.task_stride + BIG_STRIDE / task_inner.task_priority;
     drop(task_inner);
     // ---- release current PCB
 
@@ -99,4 +99,10 @@ lazy_static! {
 
 pub fn add_initproc() {
     add_task(INITPROC.clone());
+}
+
+pub fn update_syscall_status(syscall_id: usize) {
+    let task = current_task().unwrap();
+    let mut inner = task.inner_exclusive_access();
+    inner.syscall_times[syscall_id] += 1;
 }

@@ -8,14 +8,14 @@
 use super::__switch;
 use super::{fetch_task, TaskStatus};
 use super::{TaskContext, TaskControlBlock};
-use crate::config::{PAGE_SIZE, BIG_STRIDE};
+// use crate::config::{PAGE_SIZE, BIG_STRIDE};
 use crate::sync::UPSafeCell;
-use crate::syscall::process::TaskInfo;
+// use crate::syscall::process::TaskInfo;
 use crate::timer::get_time_us;
 use crate::trap::TrapContext;
 use alloc::sync::Arc;
 use lazy_static::*;
-use crate::mm::{has_mapped, has_unmapped, MapPermission};
+// use crate::mm::{has_mapped, has_unmapped, MapPermission};
 
 /// Processor management structure
 /// 用processor结构来管理运行中的进程，Processor代表处理器，这样的抽象更接近进程的本质，也可以更好地应用于多核：
@@ -64,11 +64,12 @@ pub fn run_tasks() {
             // access coming task TCB exclusively
             let mut task_inner = task.inner_exclusive_access();
             let next_task_cx_ptr = &task_inner.task_cx as *const TaskContext;
-            task_inner.task_status = TaskStatus::Running;
+            // task_inner.task_status = TaskStatus::Running;
             if task_inner.start_time == 0 {
                 task_inner.start_time = get_time_us();
             }
-            task_inner.task_stride += BIG_STRIDE / task_inner.task_priority;
+            task_inner.task_status = TaskStatus::Running;
+            // task_inner.task_stride += BIG_STRIDE / task_inner.task_priority;
             drop(task_inner);
             // release coming task TCB manually
             processor.current = Some(task);
@@ -119,55 +120,55 @@ pub fn schedule(switched_task_cx_ptr: *mut TaskContext) {
     }
 }
 
-pub fn get_task_info(ti: *mut TaskInfo) {
-    if let Some(task) = current_task() {
-        let mut inner = task.inner_exclusive_access();
-        unsafe {
-            (*ti).syscall_times = inner.syscall_times;
-            (*ti).status = TaskStatus::Running;
-            (*ti).time = {
-                let us: usize = get_time_us() - inner.start_time;
-                let sec = us / 1_000_000;
-                let usec = us % 1_000_000;
-                ((sec & 0xffff) * 1000 + usec / 1000) as usize
-            };
-        }
-    }
-}
+// pub fn get_task_info(ti: *mut TaskInfo) {
+//     if let Some(task) = current_task() {
+//         let mut inner = task.inner_exclusive_access();
+//         unsafe {
+//             (*ti).syscall_times = inner.syscall_times;
+//             (*ti).status = TaskStatus::Running;
+//             (*ti).time = {
+//                 let us: usize = get_time_us() - inner.start_time;
+//                 let sec = us / 1_000_000;
+//                 let usec = us % 1_000_000;
+//                 ((sec & 0xffff) * 1000 + usec / 1000) as usize
+//             };
+//         }
+//     }
+// }
 
-pub fn increase_syscall_time(syscall_number: usize) {
-    if let Some(task) = current_task() {
-        let mut inner = task.inner_exclusive_access();
-        inner.syscall_times[syscall_number] += 1;
-    }
-    // let mut inner = current_task().unwrap().inner_exclusive_access();
-}
+// pub fn increase_syscall_time(syscall_number: usize) {
+//     if let Some(task) = current_task() {
+//         let mut inner = task.inner_exclusive_access();
+//         inner.syscall_times[syscall_number] += 1;
+//     }
+//     // let mut inner = current_task().unwrap().inner_exclusive_access();
+// }
 
-pub fn mmap(start: usize, len: usize, port: usize) -> isize {
-    if start % PAGE_SIZE != 0 || port & !0x7 != 0 || port & 0x7 == 0 {
-        return -1;
-    }
-    if let Some(task) = current_task() {
-        let mut inner = task.inner_exclusive_access();
-        if has_mapped(inner.get_user_token(), start, len) == false {
-            return -1;
-        }
-        inner.memory_set.mmap(start, len, port);
-        // inner.memory_set.insert_framed_area(VirtAddr::from(start), VirtAddr::from(start + len), permission)
-    }
-    0
-}
+// pub fn mmap(start: usize, len: usize, port: usize) -> isize {
+//     if start % PAGE_SIZE != 0 || port & !0x7 != 0 || port & 0x7 == 0 {
+//         return -1;
+//     }
+//     if let Some(task) = current_task() {
+//         let mut inner = task.inner_exclusive_access();
+//         if has_mapped(inner.get_user_token(), start, len) == false {
+//             return -1;
+//         }
+//         inner.memory_set.mmap(start, len, port);
+//         // inner.memory_set.insert_framed_area(VirtAddr::from(start), VirtAddr::from(start + len), permission)
+//     }
+//     0
+// }
 
-pub fn munmap(start: usize, len: usize) -> isize {
-    if start % PAGE_SIZE != 0 {
-        return -1;
-    }
-    if let Some(task) = current_task() {
-        let mut inner = task.inner_exclusive_access();
-        if has_unmapped(inner.get_user_token(), start, len) {
-            return -1;
-        }
-        inner.memory_set.munmap(start, len);
-    }
-    0
-}
+// pub fn munmap(start: usize, len: usize) -> isize {
+//     if start % PAGE_SIZE != 0 {
+//         return -1;
+//     }
+//     if let Some(task) = current_task() {
+//         let mut inner = task.inner_exclusive_access();
+//         if has_unmapped(inner.get_user_token(), start, len) {
+//             return -1;
+//         }
+//         inner.memory_set.munmap(start, len);
+//     }
+//     0
+// }

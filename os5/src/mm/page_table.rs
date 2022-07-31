@@ -1,10 +1,12 @@
 //! Implementation of [`PageTableEntry`] and [`PageTable`].
 
-use super::address::VPNRange;
+// use super::address::VPNRange;
 use super::{frame_alloc, FrameTracker, PhysAddr, PhysPageNum, StepByOne, VirtAddr, VirtPageNum};
+use core::mem::size_of;
 use alloc::string::String;
 use alloc::vec;
 use alloc::vec::Vec;
+use core::slice::from_raw_parts;
 use bitflags::*;
 
 bitflags! {
@@ -215,46 +217,64 @@ pub fn translated_refmut<T>(token: usize, ptr: *mut T) -> &'static mut T {
 //     }
 // }
 
-pub fn translate_va_to_pa(token: usize, va: VirtAddr) -> Option<PhysAddr> {
-    let page_table = PageTable::from_token(token);
-    page_table.find_pte(va.clone().floor())
-        .map(|pte| {
-            let aligned_pa: PhysAddr = pte.ppn().into();
-            let offset = va.page_offset();
-            let aligned_pa_usize: usize = aligned_pa.into();
-            (aligned_pa_usize + offset).into()
-        })
+// pub fn translate_va_to_pa(token: usize, va: VirtAddr) -> Option<PhysAddr> {
+//     let page_table = PageTable::from_token(token);
+//     page_table.find_pte(va.clone().floor())
+//         .map(|pte| {
+//             let aligned_pa: PhysAddr = pte.ppn().into();
+//             let offset = va.page_offset();
+//             let aligned_pa_usize: usize = aligned_pa.into();
+//             (aligned_pa_usize + offset).into()
+//         })
+// }
+
+// pub fn has_mapped(token: usize, start: usize, len: usize) -> bool {
+//     let start_vpn = VirtAddr::from(start).floor();
+//     let end_vpn = VirtAddr::from(start + len).ceil();
+//     let page_table = PageTable::from_token(token);
+//     for vpn in VPNRange::new(start_vpn, end_vpn) {
+//         if let Some(x) = page_table.translate(vpn) {
+//             if x.is_valid() == true {
+//                 return false;
+//             }
+//         }
+//     }
+//     true
+// }
+
+// pub fn has_unmapped(token: usize, start: usize, len: usize) -> bool {
+//     let start_vpn = VirtAddr::from(start).floor();
+//     let end_vpn = VirtAddr::from(start + len).ceil();
+//     let page_table = PageTable::from_token(token);
+//     for vpn in VPNRange::new(start_vpn, end_vpn) {
+//         match page_table.translate(vpn) {
+//             Some(x) => {
+//                 if x.is_valid() == false {
+//                     return true;
+//                 }
+//             }
+//             None => {
+//                 return true;
+//             }
+//         }
+//     }
+//     false
+// }
+
+/// for type so large that spans multiple pages
+/// or even trickier, small type that cross border between 2 pages, unlikely
+pub fn translated_large_type<T>(token: usize, ptr: *const T) -> Vec<& 'static mut [u8]> {
+    let ptr = ptr as *const u8;
+    let size = size_of::<T>();
+    translated_byte_buffer(token, ptr, size)
 }
 
-pub fn has_mapped(token: usize, start: usize, len: usize) -> bool {
-    let start_vpn = VirtAddr::from(start).floor();
-    let end_vpn = VirtAddr::from(start + len).ceil();
-    let page_table = PageTable::from_token(token);
-    for vpn in VPNRange::new(start_vpn, end_vpn) {
-        if let Some(x) = page_table.translate(vpn) {
-            if x.is_valid() == true {
-                return false;
-            }
-        }
+pub unsafe fn copy_type_into_bufs<T>(value: &T, buffers: Vec<&mut [u8]>) {
+    let value = from_raw_parts(value as *const T as *const u8, size_of::<T>());
+    let mut offset = 0;
+    for buffer in buffers {
+        let dst_len = buffer.len();    
+        buffer.copy_from_slice(&value[offset..offset+dst_len]);
+        offset += dst_len;
     }
-    true
-}
-
-pub fn has_unmapped(token: usize, start: usize, len: usize) -> bool {
-    let start_vpn = VirtAddr::from(start).floor();
-    let end_vpn = VirtAddr::from(start + len).ceil();
-    let page_table = PageTable::from_token(token);
-    for vpn in VPNRange::new(start_vpn, end_vpn) {
-        match page_table.translate(vpn) {
-            Some(x) => {
-                if x.is_valid() == false {
-                    return true;
-                }
-            }
-            None => {
-                return true;
-            }
-        }
-    }
-    false
 }
