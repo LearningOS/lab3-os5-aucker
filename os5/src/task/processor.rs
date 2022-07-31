@@ -8,14 +8,14 @@
 use super::__switch;
 use super::{fetch_task, TaskStatus};
 use super::{TaskContext, TaskControlBlock};
-use crate::config::PAGE_SIZE;
+use crate::config::{PAGE_SIZE, BIG_STRIDE};
 use crate::sync::UPSafeCell;
 use crate::syscall::process::TaskInfo;
 use crate::timer::get_time_us;
 use crate::trap::TrapContext;
 use alloc::sync::Arc;
 use lazy_static::*;
-use crate::mm::{has_mapped, has_unmapped};
+use crate::mm::{has_mapped, has_unmapped, MapPermission};
 
 /// Processor management structure
 /// 用processor结构来管理运行中的进程，Processor代表处理器，这样的抽象更接近进程的本质，也可以更好地应用于多核：
@@ -65,6 +65,10 @@ pub fn run_tasks() {
             let mut task_inner = task.inner_exclusive_access();
             let next_task_cx_ptr = &task_inner.task_cx as *const TaskContext;
             task_inner.task_status = TaskStatus::Running;
+            if task_inner.start_time == 0 {
+                task_inner.start_time = get_time_us();
+            }
+            task_inner.task_stride += BIG_STRIDE / task_inner.task_priority;
             drop(task_inner);
             // release coming task TCB manually
             processor.current = Some(task);

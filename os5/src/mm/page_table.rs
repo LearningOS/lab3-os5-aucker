@@ -6,7 +6,6 @@ use alloc::string::String;
 use alloc::vec;
 use alloc::vec::Vec;
 use bitflags::*;
-use core::fmt::Debug;
 
 bitflags! {
     /// page table entry flags
@@ -203,18 +202,18 @@ pub fn translated_refmut<T>(token: usize, ptr: *mut T) -> &'static mut T {
 
 
 // give bare pointer value
-pub fn translated_assign_ptr<T: Debug>(token: usize, ptr: *mut T, value: T) {
-    let page_table = PageTable::from_token(token);
-    let va = VirtAddr::from(ptr as usize);
-    let vpn = va.floor();
-    let offset = va.page_offset();
-    let ppn = page_table.translate(vpn).unwrap().ppn();
-    let pa: PhysAddr = (usize::from(PhysAddr::from(ppn)) + offset).into();
-    unsafe {
-        let ptr_pa = (pa.0 as *mut T).as_mut().unwrap();
-        *ptr_pa = value;
-    }
-}
+// pub fn translated_assign_ptr<T: Debug>(token: usize, ptr: *mut T, value: T) {
+//     let page_table = PageTable::from_token(token);
+//     let va = VirtAddr::from(ptr as usize);
+//     let vpn = va.floor();
+//     let offset = va.page_offset();
+//     let ppn = page_table.translate(vpn).unwrap().ppn();
+//     let pa: PhysAddr = (usize::from(PhysAddr::from(ppn)) + offset).into();
+//     unsafe {
+//         let ptr_pa = (pa.0 as *mut T).as_mut().unwrap();
+//         *ptr_pa = value;
+//     }
+// }
 
 pub fn translate_va_to_pa(token: usize, va: VirtAddr) -> Option<PhysAddr> {
     let page_table = PageTable::from_token(token);
